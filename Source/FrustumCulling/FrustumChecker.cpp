@@ -9,11 +9,6 @@ UFrustumChecker::UFrustumChecker()
 void UFrustumChecker::BeginPlay()
 {
 	Super::BeginPlay();
-			
-	// if (const ACamera* _camera = Cast<ACamera>(GetOwner()))
-	// {
-	// 	cameraComponent = _camera->GetCameraComponent();
-	// }
 
 	world = GetWorld();
 	if (!world) return;

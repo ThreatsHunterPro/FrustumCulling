@@ -10,6 +10,16 @@ AOctree::AOctree()
 
 #pragma region Engine
 
+void AOctree::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	
+	const FVector& _scale = boxScale / 2.0f;
+	const FVector& _min = GetActorLocation() - _scale;
+	const FVector& _max = GetActorLocation() + _scale;
+	box = FBox(_min, _max);
+}
+
 void AOctree::BeginPlay()
 {
 	if (iAccuracy == 1)
@@ -52,7 +62,6 @@ void AOctree::Update()
 
 	else if (master)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AddOctreeWithoutChildren"));
 		master->AddOctreeWithoutChildren(this);
 	}
 }
@@ -69,8 +78,12 @@ void AOctree::SwitchVisibility()
 		const int& _childrenCount = octreeChildren.Num();
 		for (int _childIndex(0); _childIndex < _childrenCount; _childIndex++)
 		{
+			// Get the current octree
+			AOctree* _octree = octreeChildren[_childIndex];
+			if (!_octree) continue;
+			
 			// Change his visibility
-			octreeChildren[_childIndex]->SwitchVisibility();
+			_octree->SwitchVisibility();
 		}
 	}
 }
@@ -81,6 +94,7 @@ void AOctree::Clear()
 	if (iAccuracy == 1)
 	{
 		actors.Empty();
+		octreesWithoutChildren.Empty();
 		master = this;
 	}
 	
@@ -95,12 +109,12 @@ void AOctree::DrawOctrees() const
 	if (!bShowDebug) return;
 	
 	// Draw current octree as box
-	DrawDebugBox(GetWorld(), box.GetCenter(), box.GetExtent(), debugColor, false, -1, 0, fThickness);
+	DrawDebugBox(GetWorld(), box.GetCenter(), box.GetExtent(), lineColor, false, -1, 0, fThickness);
 
 	// Draw a solid box if actors are invisible
 	if (bIsHidingActors)
 	{
-		DrawDebugSolidBox(GetWorld(), box.GetCenter(), box.GetExtent(), FColor::Green.WithAlpha(20), false, -1.0f, 0);
+		DrawDebugSolidBox(GetWorld(), box.GetCenter(), box.GetExtent(), debugColor.WithAlpha(20), false, -1.0f, 0);
 	}
 }
 
@@ -140,16 +154,13 @@ void AOctree::GetActors()
 		if (!_actor) continue;
 
 		// Check if this actor can't be hidden
-		if (actorsToIgnore.Contains(_actor))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Ignored actor name : %s"), *_actor->GetName());
-			continue;
-		}
+		if (actorsToIgnore.Contains(_actor)) continue;
 		
 		// Check if this actor is into the current Octree
-		// const FVector& _actorLocation = _actor->GetActorLocation();
+		const FVector& _actorLocation = _actor->GetActorLocation();
+		
 		// const FBox& _actorBoundingBox = _actor->GetStreamingBounds();
-		// if (!box.IsInside(_actorBoundingBox)) continue;
+		if (!box.IsInside(_actorLocation)) continue;
 
 		// Check if this actor contains a static mesh
 		UActorComponent* _component = _actor->GetComponentByClass(UStaticMeshComponent::StaticClass());
@@ -162,6 +173,12 @@ void AOctree::GetActors()
 
 void AOctree::SpawnChildren()
 {
+	if (!IsValid(octreeType))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("You have forgot to set an OctreeType !"))
+		return;
+	}
+	
 	// Iterate 8 times (=> Octree)
 	for (int _childIndex(0); _childIndex < 8; _childIndex++)
 	{

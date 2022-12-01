@@ -14,7 +14,7 @@ class FRUSTUMCULLING_API AOctree : public AActor
 	#pragma region Values
 
 	/* Status of hiding */
-	UPROPERTY(VisibleAnywhere, Category = "Octree values")
+	UPROPERTY(VisibleAnywhere, Category = "Octree values | Datas")
 		bool bIsHidingActors = false;
 
 	/* Status of debugs */
@@ -26,28 +26,40 @@ class FRUSTUMCULLING_API AOctree : public AActor
 		float fThickness = 200.0f;
 
 	/* Precision of this octree */
-	UPROPERTY(VisibleAnywhere, Category = "Octree values")
+	UPROPERTY(VisibleAnywhere, Category = "Octree values | Datas")
 		int iAccuracy = 1;
 
 	/* Capacity max this octree can contains */
-	UPROPERTY(EditAnywhere, Category = "Octree values", meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000"))
+	UPROPERTY(EditAnywhere, Category = "Octree values | Datas", meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000"))
 		int iCapacity = 50;
 
 	/* Box color when debugs are enabled */
 	UPROPERTY(EditAnywhere, Category = "Octree values | Debug")
-		FColor debugColor = FColor::Cyan;
+		FColor lineColor = FColor::Cyan;
 
+	/* Box color when debugs are enabled */
+	UPROPERTY(EditAnywhere, Category = "Octree values | Debug")
+		FColor debugColor = FColor::Green;
+
+	/* Box scale */
+	UPROPERTY(EditAnywhere, Category = "Octree values | Datas")
+		FVector boxScale = FVector(100.0f);
+	
 	/* Box container */
-	UPROPERTY(EditAnywhere, Category = "Octree values")
+	UPROPERTY(VisibleAnywhere, Category = "Octree values | Datas")
 		FBox box = FBox();
 
 	/* Type to octree to spawn */
-	UPROPERTY(EditAnywhere, Category = "Octree values")
+	UPROPERTY(EditAnywhere, Category = "Octree values | Datas")
 		TSubclassOf<AOctree> octreeType = TSubclassOf<AOctree>();
 
 	/* All actors to ignore */
-	UPROPERTY(EditAnywhere, Category = "Octree values")
+	UPROPERTY(EditAnywhere, Category = "Octree values | Datas")
 		TArray<TSoftObjectPtr<AActor>> actorsToIgnore = TArray<TSoftObjectPtr<AActor>>();
+
+	/* List of all actors contains */
+	UPROPERTY(VisibleAnywhere, Category = "Octree values | Datas")
+		TArray<TSoftObjectPtr<AActor>> actors = TArray<TSoftObjectPtr<AActor>>();
 
 	#pragma endregion
 
@@ -64,10 +76,6 @@ class FRUSTUMCULLING_API AOctree : public AActor
 	/* List of all octree without children */
 	UPROPERTY()
 		TArray<AOctree*> octreesWithoutChildren = TArray<AOctree*>();
-
-	/* List of all actors contains */
-	UPROPERTY()
-		TArray<TSoftObjectPtr<AActor>> actors = TArray<TSoftObjectPtr<AActor>>();
 
 	#pragma endregion 
 	
@@ -112,6 +120,7 @@ public:
 	#pragma region Engine
 	
 private:
+	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual bool ShouldTickIfViewportsOnly() const override;
@@ -121,13 +130,13 @@ private:
 	#pragma region Tool
 
 	/* Update actors and possible children octree */
-	UFUNCTION(CallInEditor, Category = "Octree values") void Update();
+	UFUNCTION(CallInEditor, Category = "Octree actions") void Update();
 
 	/* Unshow for each octree debugs */
-	UFUNCTION(CallInEditor, Category = "Octree values") void SwitchVisibility();
+	UFUNCTION(CallInEditor, Category = "Octree actions") void SwitchVisibility();
 
 	/* Reset all actors (= only for the main) and children */
-	UFUNCTION(CallInEditor, Category = "Octree values") void Clear();
+	UFUNCTION(CallInEditor, Category = "Octree actions") void Clear();
 
 	#pragma endregion
 

@@ -26,10 +26,6 @@ class FRUSTUMCULLING_API UFrustumChecker : public UActorComponent
 
 	#pragma region Pointers
 
-	/* Current camera component */
-	UPROPERTY()
-		UCameraComponent* cameraComponent = nullptr;
-
 	/* Current world */
 	UPROPERTY()
 		UWorld* world = nullptr;
