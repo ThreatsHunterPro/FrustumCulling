@@ -1,6 +1,7 @@
 #include "PlayerCharacter.h"
-#include "Kismet/KismetMathLibrary.h"
 
+#include "FrustumChecker.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "PlayerMovementComponent.h"
 
 APlayerCharacter::APlayerCharacter()
@@ -15,23 +16,16 @@ APlayerCharacter::APlayerCharacter()
 
 	movement = CreateDefaultSubobject<UPlayerMovementComponent>(TEXT("PlayerMovementComponent"));
 	AddOwnedComponent(movement);
-}
 
-void APlayerCharacter::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
-void APlayerCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
+	checker = CreateDefaultSubobject<UFrustumChecker>(TEXT("FrustumChecker"));
+	AddOwnedComponent(movement);
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 	InputComponent->BindAxis(FName("Vertical"), movement, &UPlayerMovementComponent::MoveVertical);
-	InputComponent->BindAxis(FName("Horizontal"), movement, &UPlayerMovementComponent::MoveHorizontal);
+	InputComponent->BindAction(FName("Sprint"), IE_Pressed, movement, &UPlayerMovementComponent::ToggleSprint);
 	InputComponent->BindAxis(FName("Yaw"), movement, &UPlayerMovementComponent::MoveYaw);
 	InputComponent->BindAxis(FName("Pitch"), movement, &UPlayerMovementComponent::MovePitch);
 }

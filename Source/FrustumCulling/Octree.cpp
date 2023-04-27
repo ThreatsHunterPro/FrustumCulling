@@ -1,6 +1,7 @@
 #include "Octree.h"
 #include "FrustumCullingGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/BrushComponent.h"
 
 AOctree::AOctree()
 {
@@ -42,6 +43,16 @@ bool AOctree::ShouldTickIfViewportsOnly() const
 	return bShowDebug;
 }
 
+void AOctree::PostEditChangeProperty(FPropertyChangedEvent& _event)
+{
+	Super::PostEditChangeProperty(_event);
+
+	if (_event.Property->GetFName() == FName("iCapacity"))
+	{
+		Update();
+	}
+}
+
 #pragma endregion 
 
 #pragma region Tool
@@ -50,18 +61,43 @@ void AOctree::Update()
 {
 	// Clear all children
 	Clear();
-	
-	// Get all meshes in the world
-	GetActors();
 
+	// Used to compare the quantity of actors contained into this Octree
+	bool _amountReduced = true;
+	
+	if (iAccuracy == 1)
+	{
+		// Get all meshes in the world
+		GetActors();
+
+		// Set the minimum capacity of actors for his children
+		capacityMin = actors.Num() * 1 / 100;
+	}
+	
+	else
+	{
+		// Clamp the current capacity of actors this octree can contains
+		iCapacity = iCapacity < master->capacityMin ? master->capacityMin : iCapacity;
+		
+		// Store actors before
+		const int _parentActorsCount = actors.Num();
+
+		// Get all meshes in the world
+		GetActors();
+
+		// Take the current number of actors to compare
+		_amountReduced = actors.Num() < _parentActorsCount;
+	}
+	
 	// If there is to many meshes, subdivide them in different octree
-	if (actors.Num() > iCapacity)
+	if (actors.Num() > iCapacity && _amountReduced)
 	{
 		SpawnChildren();
 	}
 
 	else if (master)
 	{
+		// Add this octree to manage it
 		master->AddOctreeWithoutChildren(this);
 	}
 }
@@ -104,18 +140,14 @@ void AOctree::Clear()
 
 #pragma endregion
 
+#pragma region Common
+
 void AOctree::DrawOctrees() const
 {
 	if (!bShowDebug) return;
 	
 	// Draw current octree as box
 	DrawDebugBox(GetWorld(), box.GetCenter(), box.GetExtent(), lineColor, false, -1, 0, fThickness);
-
-	// Draw a solid box if actors are invisible
-	if (bIsHidingActors)
-	{
-		DrawDebugSolidBox(GetWorld(), box.GetCenter(), box.GetExtent(), debugColor.WithAlpha(20), false, -1.0f, 0);
-	}
 }
 
 void AOctree::GetActors()
@@ -150,31 +182,50 @@ void AOctree::GetActors()
 	for	(int _actorIndex(0); _actorIndex < _actorsCount; _actorIndex++)
 	{
 		// Get the current actor
-		const AActor* _actor = _allActors[_actorIndex];
+		AActor* _actor = _allActors[_actorIndex];
 		if (!_actor) continue;
 
-		// Check if this actor can't be hidden
-		if (actorsToIgnore.Contains(_actor)) continue;
-		
 		// Check if this actor is into the current Octree
-		const FVector& _actorLocation = _actor->GetActorLocation();
-		
-		// const FBox& _actorBoundingBox = _actor->GetStreamingBounds();
-		if (!box.IsInside(_actorLocation)) continue;
+		const FBox& _actorBoundingBox = _actor->GetStreamingBounds();
+		if (!box.Intersect(_actorBoundingBox)) continue;
 
-		// Check if this actor contains a static mesh
-		UActorComponent* _component = _actor->GetComponentByClass(UStaticMeshComponent::StaticClass());
-		if (!Cast<UStaticMeshComponent>(_component)) continue;
+		// Check if this actor hasn't a static mesh and must be hidden
+		if (!HasStaticMesh(_actor) || actorsToIgnore.Contains(_actor)) continue;
+
+		// // Check if this actor contains a static mesh
+		if (!_actor->GetComponentByClass(UActorComponent::StaticClass())) continue;
 
 		// Then add it to actors
 		actors.Add(_actor);
 	}
 }
 
+bool AOctree::HasStaticMesh(AActor* _actor)
+{
+	// Retrieve all static meshes
+	TArray<UActorComponent*> _components;
+	_actor->GetComponents(UStaticMeshComponent::StaticClass(), _components, true);
+
+	const int _componentsCount = _components.Num();
+	for (int _componentIndex = 0; _componentIndex < _componentsCount; _componentIndex++)
+	{
+		// Get the next ActorComponent
+		const UActorComponent* _component = _components[_componentIndex];
+		if (!_component) return false;
+
+		// Check if it is a StaticMesh
+		if (_component->IsA<UStaticMeshComponent>()) return true;
+	}
+
+	return false;
+}
+
 void AOctree::SpawnChildren()
 {
+	// Check if the TSubclassOf is well defined
 	if (!IsValid(octreeType))
 	{
+		// Otherwise, warn the user to set it
 		UE_LOG(LogTemp, Warning, TEXT("You have forgot to set an OctreeType !"))
 		return;
 	}
@@ -188,19 +239,20 @@ void AOctree::SpawnChildren()
 		_child->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
 		
 		// Get the center and extent of the current bounding box
-		FVector _initialExtent = box.GetExtent(), _extent = box.GetExtent();
+		FVector _initialExtent = box.GetExtent();
 		
-		// Init the new octree's values
-		_extent.X = _childIndex % 2 == 0 ? 0 :_extent.X;
-		_extent.Y = _childIndex % 4 >= 2 ? _extent.Y : 0;
-		_extent.Z = _childIndex >= 4 ? _extent.Z : 0;
+		// Compute the new octree's values
+		FVector _extent;
+		_extent.X = _childIndex % 2 == 0 ? 0 : _initialExtent.X;
+		_extent.Y = _childIndex % 4 >= 2 ? _initialExtent.Y : 0;
+		_extent.Z = _childIndex >= 4 ? _initialExtent.Z : 0;
 		
+		const int& _accuracy = iAccuracy + 1;
 		const FVector& _min = box.Min + _extent;
 		const FVector& _max = _min + _initialExtent;
-		const FBox& _boundingBox = FBox(_min, _max);
-		const int& _accuracy = iAccuracy + 1;
 
-		_child->Setup(_accuracy, FBox(_boundingBox), master, actors);
+		// Setup the new child with some parameters
+		_child->Setup(_accuracy, iCapacity, FBox(_min, _max), master, actors);
 
 		// Add it to the children
 		octreeChildren.Add(_child);
@@ -231,25 +283,4 @@ void AOctree::ResetOctree()
 	octreeChildren.Empty();
 }
 
-void AOctree::ChangeActorsVisibility(bool _visible)
-{
-	// Check if the visibility gonna change
-	if (bIsHidingActors != _visible) return;
-
-	// Set his current visibility
-	bIsHidingActors = !_visible;
-
-	// Goes through all the actors contained
-	const int& _actorsCount = actors.Num();
-	for (int _actorIndex(0); _actorIndex < _actorsCount; _actorIndex++)
-	{
-		// Get each actor
-		const AActor* _actor = actors[_actorIndex].Get();
-		if (!_actor) continue;
-		
-		// Get his SceneComponent to change the visibility
-		USceneComponent* _sceneComponent = _actor->GetRootComponent();
-		if (!_sceneComponent) continue;
-		_sceneComponent->SetVisibility(!bIsHidingActors);
-	}
-}
+#pragma endregion

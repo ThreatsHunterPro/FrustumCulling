@@ -2,10 +2,11 @@
 #include "CoreMinimal.h"
 
 #include "Octree.h"
-#include "Camera/CameraComponent.h"
 
 #include "Components/ActorComponent.h"
 #include "FrustumChecker.generated.h"
+
+
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class FRUSTUMCULLING_API UFrustumChecker : public UActorComponent
@@ -14,15 +15,23 @@ class FRUSTUMCULLING_API UFrustumChecker : public UActorComponent
 
 	#pragma region Values
 
+	/* Should it use range for checking */
+	UPROPERTY(EditAnywhere, Category = "Frutum checker values")
+		bool bUseRange = true;
+
+	/* Range of checker detection */
+	UPROPERTY(EditAnywhere, Category = "Frutum checker values", meta = (UIMin = "0.0", UIMax = "100000.0", ClampMin = "0.0", ClampMax = "100000.0", EditCondition = "bUseRange", EditConditionHides))
+		float fRange = 500.0f;
+	
 	/* Rate of the detection */
 	UPROPERTY(EditAnywhere, Category = "Frutum checker values", meta = (UIMin = "0.1", UIMax = "60.0", ClampMin = "0.1", ClampMax = "60.0"))
 		float fCheckRate = 0.1f;
 
-	/* Range of checker detection */
-	UPROPERTY(EditAnywhere, Category = "Frutum checker values", meta = (UIMin = "0.0", UIMax = "100000.0", ClampMin = "0.0", ClampMax = "100000.0"))
-		float fRange = 500.0f;
+	/* Rate of the detection */
+	UPROPERTY(EditAnywhere, Category = "Frutum checker values", meta = (UIMin = "0.1", UIMax = "1000.0", ClampMin = "0.1", ClampMax = "1000.0"))
+		float fCheckScale = 10.0f;
 
-	#pragma region
+	#pragma endregion
 
 	#pragma region Pointers
 
@@ -42,6 +51,9 @@ class FRUSTUMCULLING_API UFrustumChecker : public UActorComponent
 	UPROPERTY()
 		TObjectPtr<UGameViewportClient> viewportClient = nullptr;
 
+	/* Current SceneView */
+		FSceneView* sceneView = nullptr;
+	
 	/* Current viewport */
 		FViewport* viewport = nullptr;
 
@@ -57,12 +69,15 @@ private:
 
 	#pragma endregion
 
-	/* When the octree is setted, start a timer for checking method */
-	UFUNCTION(BlueprintCallable) void InitTimer(AOctree* _octree);
+	/* When the octree is set, start a timer for checking method */
+	UFUNCTION() void InitTimer(AOctree* _octree);
 
-	/* Check if the octree and its children is into the frustum */
-	UFUNCTION(BlueprintCallable) void CheckOctree();
+	/* Run through all actors contained into the current octree */
+	UFUNCTION() void CheckVisibility();
 
-	/* Check if the current octree is into the camera's frustum */
-	bool IsInFrustum(const AOctree* _target) const;	
+	/* Update the current scene view of the renderer */
+	void UpdateSceneView();
+
+	/* Check if the current actor volume is into the camera's frustum */
+	bool IsInFrustum(const AActor* _target) const;
 };

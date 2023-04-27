@@ -23,5 +23,4 @@ private:
 	void InitEvents(const APlayerCharacter* _player);
 
 	UFUNCTION() void UpdateVerticalMovement(float _verticalValue);
-	UFUNCTION() void UpdateHorizontalMovement(float _horizontalValue);
 };

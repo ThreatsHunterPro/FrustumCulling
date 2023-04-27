@@ -1,11 +1,11 @@
 #include "FrustumChecker.h"
 #include "FrustumCullingGameModeBase.h"
+#include "Components/BrushComponent.h"
 
 UFrustumChecker::UFrustumChecker()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = false;
 }
-
 void UFrustumChecker::BeginPlay()
 {
 	Super::BeginPlay();
@@ -42,47 +42,64 @@ void UFrustumChecker::InitTimer(AOctree* _octree)
 	}
 	
 	FTimerHandle checkTimer = FTimerHandle();
-	world->GetTimerManager().SetTimer(checkTimer, this, &UFrustumChecker::CheckOctree, fCheckRate, true, fCheckRate);
+	world->GetTimerManager().SetTimer(checkTimer, this, &UFrustumChecker::CheckVisibility, fCheckRate, true, fCheckRate);
 }
 
-void UFrustumChecker::CheckOctree()
+void UFrustumChecker::CheckVisibility()
 {
 	if (!octree) return;
 
-	const TArray<AOctree*>& _octrees = octree->GetOctreesWithoutChildren();
-	const int& _octreesCount = _octrees.Num();
+	// Update the scene view
+	UpdateSceneView();
 	
-	for (int _index(0); _index < _octreesCount; _index++)
-	{
-		AOctree* _octree = _octrees[_index];
-		if (!_octree) return;
-		
-		// Check if it's into the frustum
-		const bool _isInFrustum = IsInFrustum(_octree);
+	// Get all actors from the stored Octree
+	TArray<TSoftObjectPtr<AActor>> _actors = octree->GetAllActors();
+	const int& _actorsCount = _actors.Num();
 
-		// Update the visibility of the actors
-		_octree->ChangeActorsVisibility(_isInFrustum);
+	// Run though all actors
+	for (int _actorIndex(0); _actorIndex < _actorsCount; _actorIndex++)
+	{
+		// Get each actor
+		const AActor* _actor = _actors[_actorIndex].Get();
+		if (!_actor) continue;
+
+		// Only use for range system
+		bool _isInRange = false;
+
+		// If we use the range system
+		if (bUseRange)
+		{
+			// Check the distance with the current actor, if he is in the set range then it will be automatically displayed
+			_isInRange = FVector::Distance(GetOwner()->GetActorLocation(), _actor->GetActorLocation()) <= fRange;
+		}
+		
+		// Get his SceneComponent
+		USceneComponent* _sceneComponent = _actor->GetRootComponent();
+		if (!_sceneComponent) continue;
+
+		// If he his in the camera's frustum, hide him and his children
+		_sceneComponent->SetVisibility(_isInRange ? true : IsInFrustum(_actor), true);
 	}
 }
-
-bool UFrustumChecker::IsInFrustum(const AOctree* _target) const
+void UFrustumChecker::UpdateSceneView()
 {
-	if (!localPlayer || ! viewportClient || !viewport) return false;
-	
-	FSceneViewFamilyContext _viewFamily(FSceneViewFamily::ConstructionValues(viewport, world->Scene, viewportClient->EngineShowFlags).SetRealtimeUpdate(true));
+	// Check necessary pointers
+	if (!localPlayer || ! viewportClient || !viewport) return;
 
+	// Compute the scene view
+	FSceneViewFamilyContext _viewFamily(FSceneViewFamily::ConstructionValues(viewport, world->Scene, viewportClient->EngineShowFlags).SetRealtimeUpdate(true));
 	FVector _viewLocation;
 	FRotator _viewRotation;
-	if (const FSceneView* _sceneView = localPlayer->CalcSceneView(&_viewFamily, _viewLocation, _viewRotation, viewport))
-	{
-		const FBox& _box = _target->GetBox();
-		const bool _isInFrustum = _sceneView->ViewFrustum.IntersectBox(_box.GetCenter(), _box.GetExtent());
-		
-		const FVector& _targetLocation = _target->GetActorLocation();
-		const bool _isInRange = _sceneView->ViewFrustum.DistanceTo(_targetLocation) <= fRange;
-		
-		return _isInFrustum && _isInRange;
-	}
+	sceneView = localPlayer->CalcSceneView(&_viewFamily, _viewLocation, _viewRotation, viewport);
+}
+bool UFrustumChecker::IsInFrustum(const AActor* _target) const
+{
+	if (!_target || !sceneView) return false;
 
-	return false;
+	// Check if the target's bounding box is contained into the view frustum
+	const FBox& _box = _target->GetComponentsBoundingBox();
+	const FConvexVolume _volume = sceneView->ViewFrustum;
+	
+	// The param 'fCheckScale' anticipates potential Z-axis rotations
+	return _volume.IntersectBox(_box.GetCenter(), _box.GetExtent() * fCheckScale);
 }

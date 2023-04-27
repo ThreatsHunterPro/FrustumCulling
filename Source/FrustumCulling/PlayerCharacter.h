@@ -8,7 +8,7 @@
 #include "PlayerCharacter.generated.h"
 
 class UPlayerMovementComponent;
-class UPlayerAnimInstance;
+class UFrustumChecker;
 
 UCLASS()
 class FRUSTUMCULLING_API APlayerCharacter : public ACharacter
@@ -27,13 +27,14 @@ class FRUSTUMCULLING_API APlayerCharacter : public ACharacter
 		UPlayerMovementComponent* movement = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Player values | Components")
-		UPlayerAnimInstance* animInstance = nullptr;
+		UFrustumChecker* checker = nullptr;
 
 	#pragma endregion
 	
 public:
 	#pragma region Getters
 	
+	FORCEINLINE UCameraComponent* GetCamera() const { return camera; }
 	FORCEINLINE UPlayerMovementComponent* GetPlayerMovement() const { return movement; }
 	
 	#pragma endregion
@@ -44,8 +45,6 @@ public:
 private:
 	#pragma region Engine
 	
-	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	#pragma endregion
